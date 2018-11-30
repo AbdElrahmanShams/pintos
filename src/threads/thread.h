@@ -90,6 +90,13 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+
+    // some attributes needed in timer.c //modified by m.gaber
+    int64_t wakeupTime;
+    struct list_elem sleepElem;
+    int nice; //nu
+    int recent_cpu;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -137,5 +144,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+//helping function used in priority scheduling
+bool priority_comparator(const struct list_elem *,const struct   list_elem *,void *);
 
 #endif /* threads/thread.h */
