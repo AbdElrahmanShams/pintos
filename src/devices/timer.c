@@ -20,6 +20,10 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
+
+// Used in advanced scheduling
+#define RECALC_FREQ 4
+
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
@@ -96,19 +100,16 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  
-  int64_t start = timer_ticks ();
-
-  thread_current() -> wakeupTime = ticks - timer_elapsed(start); 
-
-  if(thread_current() -> wakeupTime <= 0){
-    thread_yield();
+  if (ticks <= 0)
     return;
-  }
 
-  enum intr_level old_level = intr_disable (); // disabling interrupt
+
+   enum intr_level old_level = intr_disable (); // disabling interrupt
+
+  thread_current() -> wakeupTime = ticks + timer_ticks(); 
+
   /* add thread to sleepingList */
-  list_push_back (&sleepingList, &thread_current()->sleepElem);
+  list_insert_ordered (&sleepingList, &thread_current()->elem,(list_less_func *) &ticks_comparator, NULL);
   /* block thread */
   thread_block ();
   intr_set_level (old_level); ///enable interrupt again
@@ -190,25 +191,39 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
 
-  /* iterate through sleeping threads and wake up threads whose
-     sleeping time is out */
-  struct list_elem *e;
-  for (e = list_begin (&sleepingList); e != list_end (&sleepingList);
-       e = list_next (e))
-  {
-      struct thread *t = list_entry (e, struct thread, sleepElem);
-
-      t -> wakeupTime --;
-
-      if(t -> wakeupTime <= 0)
-      {
-          thread_unblock (t) ;
-          list_remove(&t->sleepElem);
-      }
-  }
   ticks++;
   thread_tick ();
 
+  if (thread_mlfqs){
+    mlfqs_increment();
+
+    if(ticks % TIMER_FREQ == 0){
+      mlfqs_load_avg();
+      mlfqs_recalc();
+    }
+
+    if (ticks % RECALC_FREQ == 0){
+      mlfqs_priority(thread_current());
+    }
+  }
+
+  /* iterate through sleeping threads and wake up threads whose
+     sleeping time is out */
+  struct list_elem *e = list_begin (&sleepingList);
+  while( e != list_end (&sleepingList))
+  {
+      struct thread *t = list_entry (e, struct thread, elem);
+
+      if(ticks < t->wakeupTime)
+        break;
+
+      // else : remove elem from sleeping list ,unblock thread and add it to ready list.
+      list_remove(e);
+      thread_unblock(t);
+      e = list_begin(&sleepingList); 
+  }
+
+  check_highest_priority();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

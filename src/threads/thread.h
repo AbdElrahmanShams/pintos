@@ -93,12 +93,19 @@ struct thread
 
     // some attributes needed in timer.c //modified by m.gaber
     int64_t wakeupTime;
-    struct list_elem sleepElem;
     int nice; //nu
     int recent_cpu;
 
+
+    /* Used for priority scheduling and priority donation*/
+    int init_priority;
+    struct lock *wait_on_lock;
+    struct list donating_threads;
+    struct list_elem donation_elem;
+
+
     /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
+    struct list_elem elem;              /* List element */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -147,5 +154,19 @@ int thread_get_load_avg (void);
 
 //helping function used in priority scheduling
 bool priority_comparator(const struct list_elem *,const struct   list_elem *,void *);
+bool ticks_comparator(const struct list_elem *,const struct   list_elem *,void *);
+
+void donate_priority (void);
+void remove_with_lock (struct lock *lock);
+void refresh_priority (void);
+
+void check_highest_priority (void);
+
+//helping functions used in BCD scheduling
+void mlfqs_priority (struct thread *);
+void mlfqs_recent_cpu (struct thread *);
+void mlfqs_load_avg (void);
+void mlfqs_increment (void);
+void mlfqs_recalc (void);
 
 #endif /* threads/thread.h */
